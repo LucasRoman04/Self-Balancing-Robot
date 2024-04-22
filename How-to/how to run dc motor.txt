@@ -1,0 +1,10 @@
+steps for running dc motors on Arduino:
+
+1. Plug 12v dc motor wires into l293d motorshield (m3 / m4)
+2. plug motor shield into arduino
+3. install Adafruit libraries through arduino IDE https://www.arduino.cc/reference/en/libraries/adafruit-motor-shield-library/ (ide > sketch > libraries > add from .zip
+4. create a new sketch and include AFMotor.h
+5. Create AF_DCMotor objects for each motor
+6. Set max speed for each motor, between 0 and 255
+7. call the .run function with the direction you want for each motor object and set the delay to whatever you want.
+(FORWARD, BACKWARD, RELEASE)

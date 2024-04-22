@@ -1,0 +1,9 @@
+Steps for Connecting mpu-6050 to arduino and printing readings
+
+1. Plug mpu-6050 into breadboard
+2. Connect mpu-6050 to arduino via wire connection (VCC -> 5V, GND -> GND, SCL -> A5, SDA -> A4)
+3. Install mpu-6050 libraries:  Sketch > Include Library > Manage Libraries > "Adafruit MPU6050"
+4. Create mpu-6050 object (Adafruit_MPU6050 mpu;)
+5. set range / filter modes on mpu
+6. create sensors_event_t variables for acceleration / gyro
+7. print out readings (eg: a.acceleration.x, g.gyro.x) with Serial.print(a.acceleration.x);
