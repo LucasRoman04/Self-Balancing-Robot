@@ -1,17 +1,27 @@
-#include <PID_v1_bc.h>
+#include <PID_v1.h>
 #include <AFMotor.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 #include "math.h"
 
+#define KP 40
+#define KI 40
+#define KD 0.05
+#define sampleTime 0.005
+#define targetAngle -2.5;
 #define MIN_ABS_SPEED 20
+
 
 //motor / sensor objects
 AF_DCMotor motor1(3, MOTOR12_64KHZ);
 AF_DCMotor motor2(4, MOTOR12_64KHZ);
 Adafruit_MPU6050 mpu;
 
+int16_t accelY, accelZ, gyroX;
+volatile int gyroRate, motorPower;
+volatile float accelAngle, gyroAngle = 0, currentAngle, prevAngle = 0, error, prevError=0, errorSum=0;
+volatile byte count = 0;
 
 void setup() {
   //start serial clock
@@ -58,8 +68,6 @@ void loop() {
 
   //set up event variables and collect a reading
   sensors_event_t a, g, temp;
-  int accelY, accelZ, gyroX, gyroRate, motorPower;
-  float accelAngle, gyroAngle = 0;
   unsigned long currTime, prevTime = 0, loopTime;
   mpu.getEvent(&a, &g, &temp);
 
@@ -90,14 +98,33 @@ prevTime = currTime;
 
 accelZ = a.acceleration.z;
 accelY = a.acceleration.y;
-accelAngle = atan2(accelY, accelZ) * RAD_TO_DEG;
-
 gyroX = g.gyro.x;
-gyroRate = map(gyroX, -32768, 32767, -250, 250);
-gyroAngle = gyroAngle + (float)gyroRate * loopTime/1000;
-Serial.println(gyroAngle);
 
-//do something with readings (TO-DO)
+
+
+
 
   delay(100);
+}
+
+//to be called every 5 milliseconds 
+ISR(TIMER1_COMPA_vect){
+  //calculate inclination angle
+  accelAngle = atan2(accelY, accelZ) * RAD_TO_DEG;
+  gyroRate = map(gyroX, -32768, 32767, -250, 250);
+  gyroAngle = (float)gyroRate * sampleTime;
+  //put reading through complimentary filter
+  currentAngle = 0.9934 * (prevAngle + gyroAngle) + 0.0066 * (accelAngle);
+
+  //figure out error
+  error = currentAngle - targetAngle;
+  errorSum += error;
+  errorSum = constrain(errorSum, -300, 300);
+
+  //calculate output from PID
+  motorPower = KP *(error) + KI *(errorSum)*sampleTime - KD * (currentAngle - prevAngle) / sampleTime;
+  prevAngle = currentAngle;
+
+
+
 }
