@@ -6,8 +6,9 @@
 #define SET_POINT 83
 #define MIN_DIFFERENCE 0
 #define MAX_DIFFERENCE 20
-#define MIN_SPEED 0
+#define MIN_SPEED 100
 #define MAX_SPEED 255
+#define proportional 10
 
 Adafruit_MPU6050 mpu;
 AF_DCMotor motor1(4);
@@ -44,8 +45,12 @@ void loop() {
   // Serial.print("Difference: ");
   // Serial.println(difference, 5);
 
+  // Motor speed using proportional
+  float motorSpeed = proportional * difference;
 
-  float motorSpeed = map(difference, MIN_DIFFERENCE, MAX_DIFFERENCE, 100, 255);
+  // Motor speed using map
+  // float motorSpeed = map(difference, MIN_DIFFERENCE, MAX_DIFFERENCE, 100, 255);
+
   motorSpeed = constrain(motorSpeed, MIN_SPEED, MAX_SPEED);
   motor1.setSpeed(motorSpeed);
   motor2.setSpeed(motorSpeed);
@@ -59,11 +64,10 @@ void loop() {
     motor2.run(BACKWARD);
 
   } else if (accelAngle < SET_POINT && difference > 1.5) {
-    //falling forward
+    // falling forward
     motor1.run(FORWARD);
     motor2.run(FORWARD);
-  }
-  else{
+  } else {
     motor1.run(RELEASE);
     motor2.run(RELEASE);
   }
