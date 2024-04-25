@@ -9,15 +9,15 @@
 #include <Adafruit_Sensor.h>
 
 
-class Robot{
+class Robot {
 
 private:
-  const float SET_POINT      = 81.6;
-  const float MIN_SPEED      = 103;
-  const float MAX_SPEED      = 255;
-  const float PROPORTIONAL   = 19;
+  const float SET_POINT = 81.6;
+  const float MIN_SPEED = 103;
+  const float MAX_SPEED = 255;
+  const float PROPORTIONAL = 19;
   const float FORWARD_MARGIN = .2;
-  const float BACK_MARGIN    = .2;
+  const float BACK_MARGIN = .2;
 
   Adafruit_MPU6050 mpu;
   AF_DCMotor motor1;

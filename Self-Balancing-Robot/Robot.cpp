@@ -1,6 +1,6 @@
 #include "Robot.h"
 
-void Robot::run(){
+void Robot::run() {
 
 
   mpu.getEvent(&this->a, &this->g, &this->temp);
@@ -21,8 +21,8 @@ void Robot::run(){
   // float motorSpeed = map(difference, MIN_DIFFERENCE, MAX_DIFFERENCE, 100, 255);
 
   motorSpeed = constrain(motorSpeed, MIN_SPEED, MAX_SPEED);
-   this->motor1.setSpeed(motorSpeed);
-   this->motor2.setSpeed(motorSpeed);
+  this->motor1.setSpeed(motorSpeed);
+  this->motor2.setSpeed(motorSpeed);
 
   if (accelAngle > this->SET_POINT && difference > this->FORWARD_MARGIN) {
 
@@ -48,16 +48,15 @@ void Robot::run(){
   Serial.println(motorSpeed);
 }
 
-Robot::Robot() : motor1(3), motor2(4){
-  
- 
+Robot::Robot()
+  : motor1(3), motor2(4) {
 }
 
-void Robot::init(){
-   //check that the gyro is working
-  if(!mpu.begin()){
+void Robot::init() {
+  //check that the gyro is working
+  if (!mpu.begin()) {
     Serial.println("Failed to find MPU 6050 chip");
-    while(true){
+    while (true) {
       delay(10);
     }
   }
@@ -66,5 +65,4 @@ void Robot::init(){
   //set mpu modes
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
-
 }
