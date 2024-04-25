@@ -26,7 +26,8 @@ void Robot::run(){
 
   if (accelAngle > this->SET_POINT && difference > this->FORWARD_MARGIN) {
 
-    motorSpeed += 45;
+    // motorSpeed += 45;
+    motorSpeed += map(difference, 0, 20, 0, 135);
     motorSpeed = constrain(motorSpeed, this->MIN_SPEED, this->MAX_SPEED);
     this->motor1.setSpeed(motorSpeed);
     this->motor2.setSpeed(motorSpeed);
