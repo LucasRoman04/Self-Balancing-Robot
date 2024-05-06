@@ -1,106 +1,122 @@
-#include <AFMotor.h>
-#include "Arduino.h"
-#include "AFMotor.h"
 #include <Wire.h>
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
-#include <avr/wdt.h>
+#include <MPU6050.h>
 
-Adafruit_MPU6050 mpu;
-AF_DCMotor motor1(3);
-AF_DCMotor motor2(4);
+// Define the motor control pins
+const int enA = 2;  // Enable for Motor A
+const int in1 = 3;  // Input 1 for Motor A
+const int in2 = 4;  // Input 2 for Motor A
+const int enB = 5;  // Enable for Motor B
+const int in3 = 6;  // Input 1 for Motor B
+const int in4 = 7;  // Input 2 for Motor B
 
-sensors_event_t a, g, temp;
 
-double error = 0;
-double gyroRate = 0;
-double frontMargin = 0.75;
-double backMargin = 0.75;
+// MPU control/status vars
+MPU6050 mpu;
 
-double setpoint = 86.35;
-double angle;
-double motorSpeed = 0;
-double minSpeed = 0;
-double maxSpeed = 255;
-long currentTime = 0;
-long elapsedTime = 0;
-long prevTime = 0;
-double sampleTime = 0;
+/*********Tune these 4 values for your BOT*********/
+double kp = 1;  //Set this first
+double ki = 0;  //Finally set this
+double kd = 0;  //Set this secound
+/******End of values setting*********/
 
-double kp = 23;
+
+float setpoint = 103;  //set the value when the bot is perpendicular to ground using serial monitor.
+float angle = 0;
+float error, prev_error = 0;
+float integral = 0;
+float derivative = 0;
+float pidOutput = 0;
+
 
 void setup() {
+
   Serial.begin(9600);
+  Wire.begin();
+  mpu.initialize();
 
-  if (!mpu.begin()) {
-    Serial.println("Failed to find MPU 6050 chip");
-    while (true) {
-      delay(10);
-    }
-  }
-  Serial.println("MPU 6050 found");
+  // supply your own gyro offsets here, scaled for min sensitivity
+  mpu.setXGyroOffset(0);
+  mpu.setYGyroOffset(0);
+  mpu.setZGyroOffset(0);
+  mpu.setZAccelOffset(0);
 
-  //set modes
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
-  wdt_disable();
-  wdt_enable(WDTO_15MS);
+  // Set the motor control pins as outputs
+  pinMode(enA, OUTPUT);
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(enB, OUTPUT);
+  pinMode(in3, OUTPUT);
+  pinMode(in4, OUTPUT);
 
-
-  //  pinMode(LED_BUILTIN, OUTPUT);
+  //stop motors by default
+  motorStop();
 }
 
 void loop() {
-  //reset watchdog
-  wdt_reset();
-  //grab reading
-  if (mpu.getEvent(&a, &g, &temp)) {
-    //find angle of tilt
-    angle = atan2(a.acceleration.y, a.acceleration.z) * RAD_TO_DEG;
-    // gyroRate = g.gyro.y;
+  // Read sensor data
+  angle = atan2(mpu.getAccelerationY(), mpu.getAccelerationZ()) * RAD_TO_DEG;
+  error = angle - setpoint;
+  integral += error;
+  derivative = error - prev_error;
 
-    //get the time
-    currentTime = millis();
-    elapsedTime = currentTime - prevTime;
+  pidOutput = (kp * error) + (ki * integral) + (kd * derivative);
 
-    if (elapsedTime > sampleTime) {
-      prevTime = currentTime;
-      //Find error
-      error = angle - setpoint;
-      // error = abs(error);
+  Serial.print("error: ");
+  Serial.print(error);
+  Serial.print(" integral: ");
+  Serial.print(integral);
+  Serial.print(" Pid output: ");
+  Serial.println(pidOutput);
 
-      //proportional
-      motorSpeed = minSpeed + (kp * error);
-      motorSpeed = constrain(motorSpeed, minSpeed, maxSpeed);
 
-      //print data
-      // Serial.print("Error: ");
-      // Serial.println(error);
-      // Serial.print("Speed: ");
-      // Serial.println(motorSpeed);
-      Serial.print("GyroRate Y: ");
-      Serial.println(gyroRate);
+  //send power to the motors
+  powerMotors(pidOutput);
 
-      // motor1.setSpeed(motorSpeed);
-      // motor2.setSpeed(motorSpeed);
-      if (angle > setpoint && error > frontMargin) {
-        //falling forward
-        motor1.run(FORWARD);
-        motor2.run(FORWARD);
-      } else if (angle < setpoint && error > backMargin) {
-        //falling backward
-        motor1.run(BACKWARD);
-        motor2.run(BACKWARD);
-      } else {
-        //at setpoint
-        motor1.run(RELEASE);
-        motor2.run(RELEASE);
-      }
-    } else {
-      Serial.println("not enough time passed");
-    }
+  prev_error = error;
+}
 
-      error = 0;
+void powerMotors(double output) {
+  int motorSpeed = constrain(abs(pidOutput), 0, 255);
+  int leftSpeed = motorSpeed;
+  int rightSpeed = leftSpeed;
+
+  if (pidOutput > 0) {
+    //falling forward
+    motorForward();
+  } else if (pidOutput < 0) {
+    //falling backward
+    motorBackward();
+  } else {
+    //balanced
+    motorStop();
   }
 
+
+  analogWrite(enA, 255);  // Set speed for Motor A
+  analogWrite(enB, 255);  // Set speed for Motor B
+}
+// Function to run both motors forward
+void motorForward() {
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW);
+  digitalWrite(in3, HIGH);
+  digitalWrite(in4, LOW);
+}
+
+// Function to run both motors backward
+void motorBackward() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, HIGH);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, HIGH);
+}
+
+// Function to stop both motors
+void motorStop() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, LOW);
+  analogWrite(enA, 0);  // Stop Motor A
+  analogWrite(enB, 0);  // Stop Motor B
 }
