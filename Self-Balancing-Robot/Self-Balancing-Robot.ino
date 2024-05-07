@@ -1,5 +1,6 @@
 #include <Wire.h>
 #include <MPU6050.h>
+#include <avr/wdt.h> 
 
 // Define the motor control pins
 const int enA = 2;  // Enable for Motor A
@@ -13,19 +14,30 @@ const int in4 = 7;  // Input 2 for Motor B
 // MPU control/status vars
 MPU6050 mpu;
 
-/*********Tune these 4 values for your BOT*********/
-double kp = 1;  //Set this first
+/*********Tune these values for your BOT*********/
+double kp = 20;  //Set this first
 double ki = 0;  //Finally set this
 double kd = 0;  //Set this secound
 /******End of values setting*********/
 
 
-float setpoint = 103;  //set the value when the bot is perpendicular to ground using serial monitor.
+float setpoint = 16320; 
 float angle = 0;
 float error, prev_error = 0;
 float integral = 0;
 float derivative = 0;
 float pidOutput = 0;
+
+float accelY = 0;
+float accelX = 0;
+float accelZ = 0;
+float accel_angle = 0;
+float gyroX  = 0;
+float gyroRate = 0;
+float gyroAngle = 0;
+float sampleTime = 0.01;
+float filterCoEfficient = 0.98;
+float margin = 0;
 
 
 void setup() {
@@ -34,11 +46,13 @@ void setup() {
   Wire.begin();
   mpu.initialize();
 
-  // supply your own gyro offsets here, scaled for min sensitivity
-  mpu.setXGyroOffset(0);
-  mpu.setYGyroOffset(0);
-  mpu.setZGyroOffset(0);
-  mpu.setZAccelOffset(0);
+  // mpu offsets
+  mpu.setXGyroOffset(134);
+  mpu.setYGyroOffset(-1);
+  mpu.setZGyroOffset(20);
+  mpu.setXAccelOffset(-1583);
+  mpu.setYAccelOffset(-2605);
+  mpu.setZAccelOffset(2210);
 
   // Set the motor control pins as outputs
   pinMode(enA, OUTPUT);
@@ -50,50 +64,65 @@ void setup() {
 
   //stop motors by default
   motorStop();
+  wdt_enable(WDTO_1S);
 }
 
 void loop() {
+  wdt_reset();
+
+  //grab loop time
+  
   // Read sensor data
-  angle = atan2(mpu.getAccelerationY(), mpu.getAccelerationZ()) * RAD_TO_DEG;
-  error = angle - setpoint;
-  integral += error;
-  derivative = error - prev_error;
+  accelZ = mpu.getAccelerationZ();
 
-  pidOutput = (kp * error) + (ki * integral) + (kd * derivative);
+  //filter results
+  // Serial.print("accel angle : ");
+  // Serial.print(accelZ);
+  // Serial.print(" accel Y ");
+  // Serial.print(accelY);
 
-  Serial.print("error: ");
+  error = accelZ - setpoint;
+  error = error < 0 ? -error : error;
+
+
+  pidOutput = (kp * error) ;
+
+  Serial.print(" error: ");
   Serial.print(error);
-  Serial.print(" integral: ");
-  Serial.print(integral);
-  Serial.print(" Pid output: ");
+  // Serial.print(" integral: ");
+  // Serial.print(integral);
+  Serial.print(" pid output: ");
   Serial.println(pidOutput);
-
+  // Serial.println(" ");
 
   //send power to the motors
-  powerMotors(pidOutput);
+  //powerMotors(pidOutput);
+
 
   prev_error = error;
 }
 
 void powerMotors(double output) {
   int motorSpeed = constrain(abs(pidOutput), 0, 255);
+  // Serial.print("motor speed: ");
+  // Serial.println(motorSpeed);
   int leftSpeed = motorSpeed;
   int rightSpeed = leftSpeed;
 
-  if (pidOutput > 0) {
+  if (pidOutput > 0 ) {
     //falling forward
-    motorForward();
+   motorBackward();
   } else if (pidOutput < 0) {
     //falling backward
-    motorBackward();
+    motorForward();
   } else {
     //balanced
     motorStop();
   }
 
 
-  analogWrite(enA, 255);  // Set speed for Motor A
-  analogWrite(enB, 255);  // Set speed for Motor B
+  analogWrite(enA, motorSpeed);  // Set speed for Motor A
+  analogWrite(enB, motorSpeed);  // Set speed for Motor B
 }
 // Function to run both motors forward
 void motorForward() {
