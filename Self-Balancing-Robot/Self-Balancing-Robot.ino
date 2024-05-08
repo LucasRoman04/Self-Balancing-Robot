@@ -94,8 +94,6 @@ void loop() {
 void powerMotors(double output) {
   //constrain motorspeed between min and max speed
   int motorSpeed = constrain(abs(pidOutput), MIN_SPEED, MAX_SPEED);
-  int leftSpeed = motorSpeed;
-  int rightSpeed = leftSpeed;
 
   Serial.print(" motorspeed: ");
   Serial.println(motorSpeed);
