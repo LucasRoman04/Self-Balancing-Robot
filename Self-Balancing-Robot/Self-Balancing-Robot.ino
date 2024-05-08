@@ -23,7 +23,7 @@ double kd = 0;  //Set this secound
 
 
 float setpoint = 19;  //set the value when the bot is perpendicular to ground using serial monitor.
-float angle = 0;
+float position = 0;
 float error, prev_error = 0;
 float integral = 0;
 float derivative = 0;
@@ -63,10 +63,10 @@ void setup() {
 void loop() {
   wdt_reset();
   // Read sensor data
-  angle = mpu.getAccelerationZ() / 100;
+  position = mpu.getAccelerationZ() / 100;
 
   //find how off we are from the setpoint
-  error = angle - setpoint;
+  error = position - setpoint;
   // integral += error;
   // derivative = error - prev_error;
 
@@ -76,8 +76,8 @@ void loop() {
   pidOutput = (kp * error) + (ki * integral) + (kd * derivative);
 
   //print values for testing
-  Serial.print("angle: ");
-  Serial.print(angle);
+  Serial.print("bot position: ");
+  Serial.print(position);
   Serial.print(" error: ");
   Serial.print(error);
   // Serial.print(" integral: ");
@@ -97,13 +97,13 @@ void powerMotors(double output) {
 
   Serial.print(" motorspeed: ");
   Serial.println(motorSpeed);
-  analogWrite(enA, motorSpeed);  // Set speed for Motor A
-  analogWrite(enB, motorSpeed);  // Set speed for Motor B
+  // analogWrite(enA, motorSpeed);  // Set speed for Motor A
+  // analogWrite(enB, motorSpeed);  // Set speed for Motor B
 
-  if (angle > setpoint) {
+  if (position > setpoint) {
     //falling forward
     motorForward();
-  } else if (angle < setpoint) {
+  } else if (position < setpoint) {
     //falling backward
     motorBackward();
   } else {
