@@ -1,6 +1,7 @@
-#include <Wire.h>
-#include <MPU6050.h>
-#include <avr/wdt.h>
+#include "Wire.h"
+#include "I2Cdev.h"
+#include "MPU6050.h"
+#include "math.h"
 
 //speed constants
 #define MIN_SPEED 0
@@ -13,16 +14,23 @@ const int in2 = 4;  // Input 2 for Motor A
 const int enB = 5;  // Enable for Motor B
 const int in3 = 6;  // Input 1 for Motor B
 const int in4 = 7;  // Input 2 for Motor B
+
 MPU6050 mpu;
 
 /*********Tune these 4 values for your BOT*********/
-double kp = 4;  //Set this first
+double kp = 26;  //Set this first
 double ki = 0;  //Finally set this
 double kd = 0;  //Set this secound
 /******End of values setting*********/
 
+int16_t gyroX, gyroRate;
+float gyroAngle=0;
+unsigned long currTime, prevTime=0, loopTime;
 
-float setpoint = 19;  //set the value when the bot is perpendicular to ground using serial monitor.
+int16_t accY, accZ;
+float accAngle, currentAngle, prevAngle = 0;
+
+float setpoint = 6.2;  //set the value when the bot is perpendicular to ground using serial monitor.
 float position = 0;
 float error, prev_error = 0;
 float integral = 0;
@@ -30,43 +38,44 @@ float derivative = 0;
 float pidOutput = 0;
 int margin = 1;
 
-
-void setup() {
-  //start hardware
-  Serial.begin(9600);
-  Wire.begin();
+void setup() {  
   mpu.initialize();
+  Serial.begin(115200);
 
-  // supply your own gyro offsets here, scaled for min sensitivity
-  // mpu.setXGyroOffset(0);
-  // mpu.setYGyroOffset(0);
-  // mpu.setZGyroOffset(0);
-  // mpu.setXAccelOffset(-1583);
-  // mpu.setYAccelOffset(-2605);
-  // mpu.setZAccelOffset(2210);
-
-  // Set the motor control pins as output
+    // Set the motor control pins as output
   pinMode(enA, OUTPUT);
   pinMode(in1, OUTPUT);
   pinMode(in2, OUTPUT);
   pinMode(enB, OUTPUT);
   pinMode(in3, OUTPUT);
   pinMode(in4, OUTPUT);
-
+  
   //stop motors by default
   motorStop();
 
-  //start watchdog
-  wdt_enable(WDTO_120MS);
 }
 
-void loop() {
-  wdt_reset();
-  // Read sensor data
-  position = mpu.getAccelerationZ() / 100;
+void loop() {  
+  //grab sample time
+  currTime = millis();
+  loopTime = currTime - prevTime;
+  prevTime = currTime;
 
+  //accelerometer data
+  accZ = mpu.getAccelerationZ();
+  accY = mpu.getAccelerationY();
+  accAngle = atan2(accZ, accY)*RAD_TO_DEG;
+
+  // //gyro data
+  // gyroX = mpu.getRotationX();
+  // gyroRate = map(gyroX, -32768, 32767, -250, 250);
+  // gyroAngle = gyroAngle + (float)gyroRate*loopTime/1000;
+
+  // //combine gyro and accelerometer into complimentary filter to find the current angle.
+  // currentAngle =  0.9934 * (prevAngle + gyroAngle) + 0.0066 * (accAngle);
+  // prevAngle = currentAngle;
   //find how off we are from the setpoint
-  error = position - setpoint;
+  error = accAngle - setpoint;
   // integral += error;
   // derivative = error - prev_error;
 
@@ -76,10 +85,12 @@ void loop() {
   pidOutput = (kp * error) + (ki * integral) + (kd * derivative);
 
   //print values for testing
-  Serial.print("bot position: ");
-  Serial.print(position);
+  // Serial.print("bot position: ");
+  // Serial.print(accAngle);
   Serial.print(" error: ");
-  Serial.print(error);
+  Serial.println(error);
+  // Serial.print("Current angle: ");
+  // Serial.println(currentAngle);
   // Serial.print(" integral: ");
   // Serial.print(integral);
   // Serial.print(" Pid output: ");
@@ -87,23 +98,19 @@ void loop() {
 
   //send power to the motors
   powerMotors(pidOutput);
-
-  // prev_error = error;
 }
 
-void powerMotors(double output) {
+void powerMotors(double pidOutput) {
   //constrain motorspeed between min and max speed
   int motorSpeed = constrain(abs(pidOutput), MIN_SPEED, MAX_SPEED);
 
-  Serial.print(" motorspeed: ");
-  Serial.println(motorSpeed);
-  // analogWrite(enA, motorSpeed);  // Set speed for Motor A
-  // analogWrite(enB, motorSpeed);  // Set speed for Motor B
+  analogWrite(enA, motorSpeed);  // Set speed for Motor A
+  analogWrite(enB, motorSpeed);  // Set speed for Motor B
 
-  if (position > setpoint) {
+  if (accAngle > setpoint) {
     //falling forward
     motorForward();
-  } else if (position < setpoint) {
+  } else if (accAngle < setpoint) {
     //falling backward
     motorBackward();
   } else {
@@ -111,6 +118,7 @@ void powerMotors(double output) {
     motorStop();
   }
 }
+
 // Function to run both motors forward
 void motorForward() {
   // Serial.println(" backward");
