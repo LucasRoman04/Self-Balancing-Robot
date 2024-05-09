@@ -18,11 +18,16 @@ const int in4 = 7;  // Input 2 for Motor B
 MPU6050 mpu;
 
 /*********Tune these 4 values for your BOT*********/
+<<<<<<< HEAD
 double kp = 26;  //Set this first
+=======
+double kp = 8;  //Set this first
+>>>>>>> 17310d4d4ea1eb05fa0f30e8fe0d65677ba3eb23
 double ki = 0;  //Finally set this
 double kd = 0;  //Set this secound
 /******End of values setting*********/
 
+<<<<<<< HEAD
 int16_t gyroX, gyroRate;
 float gyroAngle=0;
 unsigned long currTime, prevTime=0, loopTime;
@@ -31,6 +36,12 @@ int16_t accY, accZ;
 float accAngle, currentAngle, prevAngle = 0;
 
 float setpoint = 6.2;  //set the value when the bot is perpendicular to ground using serial monitor.
+=======
+int16_t accY, accZ;
+float accAngle;
+
+float setpoint = 0;  //set the value when the bot is perpendicular to ground using serial monitor.
+>>>>>>> 17310d4d4ea1eb05fa0f30e8fe0d65677ba3eb23
 float position = 0;
 float error, prev_error = 0;
 float integral = 0;
@@ -56,6 +67,7 @@ void setup() {
 }
 
 void loop() {  
+<<<<<<< HEAD
   //grab sample time
   currTime = millis();
   loopTime = currTime - prevTime;
@@ -75,6 +87,14 @@ void loop() {
   // currentAngle =  0.9934 * (prevAngle + gyroAngle) + 0.0066 * (accAngle);
   // prevAngle = currentAngle;
   //find how off we are from the setpoint
+=======
+  accZ = mpu.getAccelerationZ();
+  accY = mpu.getAccelerationY();
+   
+  accAngle = atan2(accZ, accY)*RAD_TO_DEG;
+
+      //find how off we are from the setpoint
+>>>>>>> 17310d4d4ea1eb05fa0f30e8fe0d65677ba3eb23
   error = accAngle - setpoint;
   // integral += error;
   // derivative = error - prev_error;
@@ -102,8 +122,13 @@ void loop() {
 
 void powerMotors(double pidOutput) {
   //constrain motorspeed between min and max speed
-  int motorSpeed = constrain(abs(pidOutput), MIN_SPEED, MAX_SPEED);
+  int motorSpeed = constrain(abs(output), MIN_SPEED, MAX_SPEED);
 
+<<<<<<< HEAD
+=======
+  Serial.print(" motorspeed: ");
+  Serial.println(motorSpeed);
+>>>>>>> 17310d4d4ea1eb05fa0f30e8fe0d65677ba3eb23
   analogWrite(enA, motorSpeed);  // Set speed for Motor A
   analogWrite(enB, motorSpeed);  // Set speed for Motor B
 
