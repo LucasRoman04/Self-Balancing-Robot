@@ -2,10 +2,13 @@
 #include "I2Cdev.h"
 #include "MPU6050.h"
 #include "math.h"
+#include <avr/wdt.h>
+
 
 //speed constants
-#define MIN_SPEED 0
-#define MAX_SPEED 255
+#define MIN_SPEED 120
+#define MAX_SPEED 200
+const float MARGIN = 2;
 
 // Define the motor control pins / mpu object
 const int enA = 2;  // Enable for Motor A
@@ -18,110 +21,138 @@ const int in4 = 7;  // Input 2 for Motor B
 MPU6050 mpu;
 
 /*********Tune these 4 values for your BOT*********/
-double kp = 26;  //Set this first
-double ki = 0;  //Finally set this
-double kd = 0;  //Set this secound
+double kp = 18;  //Set this first(22.5)
+double ki = 0;   //Finally set this
+double kd = 0;   //Set this second
 /******End of values setting*********/
-
-int16_t gyroX, gyroRate;
-float gyroAngle=0;
-unsigned long currTime, prevTime=0, loopTime;
 
 int16_t accY, accZ;
 float accAngle, currentAngle, prevAngle = 0;
 
-float setpoint = 6.2;  //set the value when the bot is perpendicular to ground using serial monitor.
-float position = 0;
+float setpoint = 5;  //set the value when the bot is perpendicular to ground using serial monitor.
 float error, prev_error = 0;
 float integral = 0;
 float derivative = 0;
 float pidOutput = 0;
-int margin = 1;
 
-void setup() {  
+// Kalman filter variables
+float Q_angle = 0.001;  // Process noise covariance for the accelerometer
+float R_angle = 0.01;   // Measurement noise covariance for the accelerometer
+
+float P[2][2] = { { 1, 0 }, { 0, 1 } };  // Initial estimation error covariance matrix
+float angle = 0;                         // Initial state estimate
+float bias = 0;                          // Initial bias estimate
+float rate;                              // Gyroscope reading
+
+unsigned long prevTime = 0;
+float dt;  // Time step
+
+void setup() {
   mpu.initialize();
   Serial.begin(115200);
 
-    // Set the motor control pins as output
+  // Set the motor control pins as output
   pinMode(enA, OUTPUT);
   pinMode(in1, OUTPUT);
   pinMode(in2, OUTPUT);
   pinMode(enB, OUTPUT);
   pinMode(in3, OUTPUT);
   pinMode(in4, OUTPUT);
-  
-  //stop motors by default
-  motorStop();
 
+  wdt_enable(WDTO_15MS);
+  // Stop motors by default
+  motorStop();
 }
 
-void loop() {  
-  //grab sample time
-  currTime = millis();
-  loopTime = currTime - prevTime;
+void loop() {
+  wdt_reset();
+  // Calculate delta time
+  unsigned long currTime = millis();
+  dt = (currTime - prevTime) / 1000.0;
   prevTime = currTime;
 
-  //accelerometer data
+  // Read sensor data
   accZ = mpu.getAccelerationZ();
   accY = mpu.getAccelerationY();
-  accAngle = atan2(accZ, accY)*RAD_TO_DEG;
+  accAngle = atan2(accZ, accY) * RAD_TO_DEG;
 
-  // //gyro data
-  // gyroX = mpu.getRotationX();
-  // gyroRate = map(gyroX, -32768, 32767, -250, 250);
-  // gyroAngle = gyroAngle + (float)gyroRate*loopTime/1000;
+  // Gyroscope reading
+  // Note: Uncomment this section if you want to use gyroscope data
+  int16_t gyroX = mpu.getRotationX();
+  rate = map(gyroX, -32768, 32767, -250, 250);
 
-  // //combine gyro and accelerometer into complimentary filter to find the current angle.
-  // currentAngle =  0.9934 * (prevAngle + gyroAngle) + 0.0066 * (accAngle);
-  // prevAngle = currentAngle;
-  //find how off we are from the setpoint
-  error = accAngle - setpoint;
-  // integral += error;
-  // derivative = error - prev_error;
+  // Kalman filter predict step
+  angle += dt * (rate - bias);
+  P[0][0] += dt * (dt * P[1][1] - P[0][1] - P[1][0] + Q_angle);
+  P[0][1] -= dt * P[1][1];
+  P[1][0] -= dt * P[1][1];
+  P[1][1] += R_angle * dt;
 
-  error = error < 0 ? -error : error;
+  // Kalman filter update step
+  float y = accAngle - angle;
+  float S = P[0][0] + R_angle;
+  float K[2];  // Kalman gain
+  K[0] = P[0][0] / S;
+  K[1] = P[1][0] / S;
 
-  //generate a motor response relative to the amount of error
-  pidOutput = (kp * error) + (ki * integral) + (kd * derivative);
+  angle += K[0] * y;
+  bias += K[1] * y;
+  P[0][0] -= K[0] * P[0][0];
+  P[0][1] -= K[0] * P[0][1];
+  P[1][0] -= K[1] * P[0][0];
+  P[1][1] -= K[1] * P[0][1];
 
-  //print values for testing
-  // Serial.print("bot position: ");
+  // Calculate PID output
+  error = angle - setpoint;
+  integral += error * dt;
+  derivative = (error - prev_error) / dt;
+  pidOutput = kp * error + ki * integral + kd * derivative;
+
+  // Print values for testing
+  // Serial.print("Angle: ");
   // Serial.print(accAngle);
   Serial.print(" error: ");
-  Serial.println(error);
-  // Serial.print("Current angle: ");
-  // Serial.println(currentAngle);
-  // Serial.print(" integral: ");
-  // Serial.print(integral);
-  // Serial.print(" Pid output: ");
-  // Serial.println(pidOutput);
+  Serial.print(error);
 
-  //send power to the motors
+
+  // Send power to the motors
   powerMotors(pidOutput);
+
+  prev_error = error;
 }
 
 void powerMotors(double pidOutput) {
-  //constrain motorspeed between min and max speed
+  // Constrain motor speed between min and max speed
   int motorSpeed = constrain(abs(pidOutput), MIN_SPEED, MAX_SPEED);
 
-  analogWrite(enA, motorSpeed);  // Set speed for Motor A
-  analogWrite(enB, motorSpeed);  // Set speed for Motor B
+  Serial.print(" Speed: ");
+  Serial.println(motorSpeed);
 
-  if (accAngle > setpoint) {
-    //falling forward
-    motorForward();
-  } else if (accAngle < setpoint) {
-    //falling backward
-    motorBackward();
+  if (abs(error) > MARGIN) {
+    // Serial.println("Movin");
+    analogWrite(enA, motorSpeed);  // Set speed for Motor A
+    analogWrite(enB, motorSpeed);  // Set speed for Motor B
+
+    if (angle > setpoint) {
+      // Falling forward
+      // Serial.println(" forward");
+      motorForward();
+    } else if (angle < setpoint) {
+      // Falling backward
+      // Serial.println(" backward");
+      motorBackward();
+    } else {
+      // Balanced
+      motorStop();
+    }
   } else {
-    //balanced
-    motorStop();
+    // Serial.println("not movin");
+    motorStop(); // Set speed for Motor B
   }
 }
 
 // Function to run both motors forward
 void motorForward() {
-  // Serial.println(" backward");
   digitalWrite(in1, HIGH);
   digitalWrite(in2, LOW);
   digitalWrite(in3, HIGH);
@@ -130,7 +161,6 @@ void motorForward() {
 
 // Function to run both motors backward
 void motorBackward() {
-  // Serial.println(" Forward");
   digitalWrite(in1, LOW);
   digitalWrite(in2, HIGH);
   digitalWrite(in3, LOW);
